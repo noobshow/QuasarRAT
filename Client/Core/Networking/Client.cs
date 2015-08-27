@@ -61,6 +61,7 @@ namespace xClient.Core.Networking
             if (Connected == connected) return;
 
             Connected = connected;
+
             if (ClientState != null)
             {
                 ClientState(this, connected);
@@ -316,13 +317,21 @@ namespace xClient.Core.Networking
 
                     if (bytesTransferred <= 0)
                     {
-                        OnClientState(false);
+                        Disconnect();
                         return;
                     }
                 }
+                catch (NullReferenceException)
+                {
+                    return;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
                 catch (Exception)
                 {
-                    OnClientState(false);
+                    Disconnect();
                     return;
                 }
 
@@ -474,12 +483,17 @@ namespace xClient.Core.Networking
 
                                 if (_writeOffset == _payloadLen)
                                 {
-                                    if (encryptionEnabled)
-                                        _payloadBuffer = AES.Decrypt(_payloadBuffer);
+                                    bool isError = _payloadBuffer.Length == 0;
 
-                                    bool isError = _payloadBuffer.Length == 0; // check if payload decryption failed
+                                    if (!isError)
+                                    {
+                                        if (encryptionEnabled)
+                                            _payloadBuffer = AES.Decrypt(_payloadBuffer);
 
-                                    if (_payloadBuffer.Length > 0)
+                                        isError = _payloadBuffer.Length == 0; // check if payload decryption failed
+                                    }
+
+                                    if (!isError)
                                     {
                                         if (compressionEnabled)
                                             _payloadBuffer = SafeQuickLZ.Decompress(_payloadBuffer);
@@ -657,16 +671,18 @@ namespace xClient.Core.Networking
         /// </summary>
         public void Disconnect()
         {
-            OnClientState(false);
-
             if (_handle != null)
             {
                 _handle.Close();
+                _handle = null;
                 _readOffset = 0;
                 _writeOffset = 0;
+                _tempHeaderOffset = 0;
                 _readableDataLen = 0;
                 _payloadLen = 0;
                 _payloadBuffer = null;
+                _receiveState = ReceiveType.Header;
+
                 if (_proxyClients != null)
                 {
                     lock (_proxyClientsLock)
@@ -682,6 +698,8 @@ namespace xClient.Core.Networking
                     Commands.CommandHandler.StreamCodec = null;
                 }
             }
+
+            OnClientState(false);
         }
 
         /// <summary>

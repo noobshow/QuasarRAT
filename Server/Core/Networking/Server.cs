@@ -22,7 +22,8 @@ namespace xServer.Core.Networking
         /// </summary>
         /// <param name="s">The server which changed its state.</param>
         /// <param name="listening">The new listening state of the server.</param>
-        public delegate void ServerStateEventHandler(Server s, bool listening);
+        /// <param name="port">The port the server is listening on, if listening is True.</param>
+        public delegate void ServerStateEventHandler(Server s, bool listening, ushort port);
 
         /// <summary>
         /// Fires an event that informs subscribers that the server has changed it's state.
@@ -30,16 +31,20 @@ namespace xServer.Core.Networking
         /// <param name="listening">The new listening state of the server.</param>
         private void OnServerState(bool listening)
         {
+            if (Listening == listening) return;
+
+            Listening = listening;
+
             if (ServerState != null)
             {
-                ServerState(this, listening);
+                ServerState(this, listening, Port);
             }
         }
 
         /// <summary>
         /// Occurs when the state of a client changes.
         /// </summary>
-        public event ClientStateEventHandler ClientState;
+        protected event ClientStateEventHandler ClientState;
 
         /// <summary>
         /// Represents a method that will handle a change in a client's state.
@@ -47,7 +52,7 @@ namespace xServer.Core.Networking
         /// <param name="s">The server, the client is connected to.</param>
         /// <param name="c">The client which changed its state.</param>
         /// <param name="connected">The new connection state of the client.</param>
-        public delegate void ClientStateEventHandler(Server s, Client c, bool connected);
+        protected delegate void ClientStateEventHandler(Server s, Client c, bool connected);
 
         /// <summary>
         /// Fires an event that informs subscribers that a client has changed its state.
@@ -65,7 +70,7 @@ namespace xServer.Core.Networking
         /// <summary>
         /// Occurs when a packet is received by a client.
         /// </summary>
-        public event ClientReadEventHandler ClientRead;
+        protected event ClientReadEventHandler ClientRead;
 
         /// <summary>
         /// Represents a method that will handle a packet received from a client.
@@ -73,7 +78,7 @@ namespace xServer.Core.Networking
         /// <param name="s">The server, the client is connected to.</param>
         /// <param name="c">The client that has received the packet.</param>
         /// <param name="packet">The packet that received by the client.</param>
-        public delegate void ClientReadEventHandler(Server s, Client c, IPacket packet);
+        protected delegate void ClientReadEventHandler(Server s, Client c, IPacket packet);
 
         /// <summary>
         /// Fires an event that informs subscribers that a packet has been
@@ -92,7 +97,7 @@ namespace xServer.Core.Networking
         /// <summary>
         /// Occurs when a packet is sent by a client.
         /// </summary>
-        public event ClientWriteEventHandler ClientWrite;
+        protected event ClientWriteEventHandler ClientWrite;
 
         /// <summary>
         /// Represents the method that will handle the sent packet by a client.
@@ -102,7 +107,7 @@ namespace xServer.Core.Networking
         /// <param name="packet">The packet that has been sent by the client.</param>
         /// <param name="length">The length of the packet.</param>
         /// <param name="rawData">The packet in raw bytes.</param>
-        public delegate void ClientWriteEventHandler(Server s, Client c, IPacket packet, long length, byte[] rawData);
+        protected delegate void ClientWriteEventHandler(Server s, Client c, IPacket packet, long length, byte[] rawData);
 
         /// <summary>
         /// Fires an event that informs subscribers that the client has sent a packet.
@@ -160,14 +165,9 @@ namespace xServer.Core.Networking
         public int MAX_PACKET_SIZE { get { return (1024 * 1024) * 5; } } // 5MB
 
         /// <summary>
-        /// Gets or sets if the server is currently processing data that should prevent disconnection. 
-        /// </summary>
-        public bool Processing { get; private set; }
-
-        /// <summary>
         /// The buffer manager to handle the receive buffers for the clients.
         /// </summary>
-        public static PooledBufferManager BufferManager { get; private set; }
+        public PooledBufferManager BufferManager { get; private set; }
 
         /// <summary>
         /// The listening state of the server. True if listening, else False.
@@ -215,6 +215,11 @@ namespace xServer.Core.Networking
         private List<Type> PacketTypes { get; set; }
 
         /// <summary>
+        /// Determines if the server is currently processing Disconnect method. 
+        /// </summary>
+        private bool _processing;
+
+        /// <summary>
         /// Constructor of the server, initializes variables.
         /// </summary>
         public Server()
@@ -245,13 +250,7 @@ namespace xServer.Core.Networking
 
                     if (_handle != null)
                     {
-                        try
-                        {
-                            _handle.Close();
-                        }
-                        catch
-                        {
-                        }
+                        _handle.Close();
                     }
 
                     if (BufferManager == null)
@@ -261,9 +260,8 @@ namespace xServer.Core.Networking
                     _handle.Bind(new IPEndPoint(IPAddress.Any, port));
                     _handle.Listen(1000);
 
-                    Processing = false;
+                    _processing = false;
 
-                    Listening = true;
                     OnServerState(true);
 
                     if (!_handle.AcceptAsync(_item))
@@ -319,16 +317,10 @@ namespace xServer.Core.Networking
                                 BufferManager.IncreaseBufferCount(1);
 
                             Client client = new Client(this, e.AcceptSocket, PacketTypes.ToArray());
-
-                            lock (_clientsLock)
-                            {
-                                _clients.Add(client);
-                                client.ClientState += OnClientState;
-                                client.ClientRead += OnClientRead;
-                                client.ClientWrite += OnClientWrite;
-
-                                OnClientState(client, true);
-                            }
+                            client.ClientState += OnClientState;
+                            client.ClientRead += OnClientRead;
+                            client.ClientWrite += OnClientWrite;
+                            OnClientState(client, true);
                             break;
                         case SocketError.ConnectionReset:
                             break;
@@ -349,11 +341,25 @@ namespace xServer.Core.Networking
         }
 
         /// <summary>
+        /// Adds a connected client to the list of clients.
+        /// </summary>
+        /// <param name="client">The client to add.</param>
+        public void AddClient(Client client)
+        {
+            lock (_clientsLock)
+            {
+                _clients.Add(client);
+            }
+        }
+
+        /// <summary>
         /// Removes a disconnected client from the list of clients.
         /// </summary>
         /// <param name="client">The client to remove.</param>
         public void RemoveClient(Client client)
         {
+            if (_processing) return;
+
             lock (_clientsLock)
             {
                 int index = -1;
@@ -369,7 +375,6 @@ namespace xServer.Core.Networking
 
                 try
                 {
-                    _clients[index].Disconnect();
                     _clients.RemoveAt(index);
                 }
                 catch
@@ -384,23 +389,22 @@ namespace xServer.Core.Networking
         /// </summary>
         public void Disconnect()
         {
-            if (Processing)
-                return;
-
-            Processing = true;
+            if (_processing) return;
+            _processing = true;
 
             if (_handle != null)
             {
                 _handle.Close();
+                _handle = null;
             }
 
             lock (_clientsLock)
             {
                 while (_clients.Count != 0)
                 {
-                    _clients[0].Disconnect();
                     try
                     {
+                        _clients[0].Disconnect();
                         _clients.RemoveAt(0);
                     }
                     catch
@@ -409,7 +413,7 @@ namespace xServer.Core.Networking
                 }
             }
 
-            Listening = false;
+            _processing = false;
             OnServerState(false);
         }
     }

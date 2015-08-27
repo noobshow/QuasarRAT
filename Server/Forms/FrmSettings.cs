@@ -11,9 +11,9 @@ namespace xServer.Forms
 {
     public partial class FrmSettings : Form
     {
-        private readonly ConnectionHandler _listenServer;
+        private readonly ServerHandler _listenServer;
 
-        public FrmSettings(ConnectionHandler listenServer)
+        public FrmSettings(ServerHandler listenServer)
         {
             this._listenServer = listenServer;
 
@@ -53,6 +53,7 @@ namespace xServer.Forms
         private void btnListen_Click(object sender, EventArgs e)
         {
             ushort port = GetPortSafe();
+            string password = txtPassword.Text;
 
             if (port == 0)
             {
@@ -61,10 +62,19 @@ namespace xServer.Forms
                 return;
             }
 
+            if (password.Length < 3)
+            {
+                MessageBox.Show("Please enter a secure password with more than 3 characters.",
+                    "Please enter a secure password", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             if (btnListen.Text == "Start listening" && !_listenServer.Listening)
             {
                 try
                 {
+                    AES.PreHashKey(password);
+
                     if (chkUseUpnp.Checked)
                     {
                         if (!UPnP.IsDeviceFound)
@@ -113,6 +123,7 @@ namespace xServer.Forms
         private void btnSave_Click(object sender, EventArgs e)
         {
             ushort port = GetPortSafe();
+            string password = txtPassword.Text;
 
             if (port == 0)
             {
@@ -121,13 +132,19 @@ namespace xServer.Forms
                 return;
             }
 
+            if (password.Length < 3)
+            {
+                MessageBox.Show("Please enter a secure password with more than 3 characters.",
+                    "Please enter a secure password", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             Settings.ListenPort = port;
             Settings.AutoListen = chkAutoListen.Checked;
             Settings.ShowPopup = chkPopup.Checked;
-            var newPassword = txtPassword.Text;
-            if (newPassword != Settings.Password)
-                AES.PreHashKey(newPassword);
-            Settings.Password = newPassword;
+            if (password != Settings.Password)
+                AES.PreHashKey(password);
+            Settings.Password = password;
             Settings.UseUPnP = chkUseUpnp.Checked;
             Settings.ShowToolTip = chkShowTooltip.Checked;
             Settings.EnableNoIPUpdater = chkNoIPIntegration.Checked;

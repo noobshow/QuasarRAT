@@ -35,13 +35,11 @@ namespace xServer.Core.Networking
             if (Connected == connected) return;
 
             Connected = connected;
+
             if (ClientState != null)
             {
                 ClientState(this, connected);
             }
-
-            if (!connected && !_parentServer.Processing)
-                _parentServer.RemoveClient(this);
         }
 
         /// <summary>
@@ -119,7 +117,7 @@ namespace xServer.Core.Networking
         /// <summary>
         /// Handle of the Client Socket.
         /// </summary>
-        private readonly Socket _handle;
+        private Socket _handle;
 
         /// <summary>
         /// The Queue which holds buffers to send.
@@ -168,6 +166,11 @@ namespace xServer.Core.Networking
         /// The connection state of the client.
         /// </summary>
         public bool Connected { get; private set; }
+
+        /// <summary>
+        /// Determines if the client is authenticated.
+        /// </summary>
+        public bool Authenticated { get; set; }
 
         /// <summary>
         /// Stores values of the user.
@@ -226,6 +229,7 @@ namespace xServer.Core.Networking
             try
             {
                 _parentServer = server;
+                _parentServer.AddClient(this);
                 AddTypesToSerializer(packets);
                 if (_serializer == null) throw new Exception("Serializer not initialized");
                 Initialize();
@@ -236,7 +240,7 @@ namespace xServer.Core.Networking
                 EndPoint = (IPEndPoint)_handle.RemoteEndPoint;
                 ConnectedTime = DateTime.UtcNow;
 
-                _readBuffer = Server.BufferManager.GetBuffer();
+                _readBuffer = _parentServer.BufferManager.GetBuffer();
                 _tempHeader = new byte[_parentServer.HEADER_SIZE];
 
                 _handle.BeginReceive(_readBuffer, 0, _readBuffer.Length, SocketFlags.None, AsyncReceive, null);
@@ -250,6 +254,7 @@ namespace xServer.Core.Networking
 
         private void Initialize()
         {
+            Authenticated = false;
             Value = new UserState();
         }
 
@@ -265,13 +270,21 @@ namespace xServer.Core.Networking
 
                     if (bytesTransferred <= 0)
                     {
-                        OnClientState(false);
+                        Disconnect();
                         return;
                     }
                 }
+                catch (NullReferenceException)
+                {
+                    return;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
                 catch (Exception)
                 {
-                    OnClientState(false);
+                    Disconnect();
                     return;
                 }
 
@@ -425,12 +438,17 @@ namespace xServer.Core.Networking
 
                                 if (_writeOffset == _payloadLen)
                                 {
-                                    if (encryptionEnabled)
-                                        _payloadBuffer = AES.Decrypt(_payloadBuffer);
+                                    bool isError = _payloadBuffer.Length == 0;
 
-                                    bool isError = _payloadBuffer.Length == 0; // check if payload decryption failed
+                                    if (!isError)
+                                    {
+                                        if (encryptionEnabled)
+                                            _payloadBuffer = AES.Decrypt(_payloadBuffer);
 
-                                    if (_payloadBuffer.Length > 0)
+                                        isError = _payloadBuffer.Length == 0; // check if payload decryption failed
+                                    }
+
+                                    if (!isError)
                                     {
                                         if (compressionEnabled)
                                             _payloadBuffer = SafeQuickLZ.Decompress(_payloadBuffer);
@@ -609,24 +627,31 @@ namespace xServer.Core.Networking
         /// </summary>
         public void Disconnect()
         {
-            OnClientState(false);
-
             if (_handle != null)
             {
                 _handle.Close();
+                _handle = null;
                 _readOffset = 0;
                 _writeOffset = 0;
+                _tempHeaderOffset = 0;
                 _readableDataLen = 0;
                 _payloadLen = 0;
                 _payloadBuffer = null;
+                _receiveState = ReceiveType.Header;
+
                 if (Value != null)
                 {
                     Value.Dispose();
                     Value = null;
                 }
-                if (Server.BufferManager != null)
-                    Server.BufferManager.ReturnBuffer(_readBuffer);
+
+                if (_parentServer.BufferManager != null)
+                    _parentServer.BufferManager.ReturnBuffer(_readBuffer);
             }
+
+            _parentServer.RemoveClient(this);
+
+            OnClientState(false);
         }
 
         /// <summary>
