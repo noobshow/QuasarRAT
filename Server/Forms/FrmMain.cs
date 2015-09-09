@@ -18,7 +18,7 @@ namespace xServer.Forms
 {
     public partial class FrmMain : Form
     {
-        public ServerHandler ConServer { get; set; }
+        public QuasarServer ListenServer { get; set; }
         public static FrmMain Instance { get; private set; }
 
         private const int STATUS_ID = 4;
@@ -59,12 +59,13 @@ namespace xServer.Forms
                 this.Invoke((MethodInvoker) delegate
                 {
                     int selected = lstClients.SelectedItems.Count;
-                    this.Text = (selected > 0) ?
-                        string.Format("Quasar - Connected: {0} [Selected: {1}]", ConServer.ConnectedClients, selected) :
-                        string.Format("Quasar - Connected: {0}", ConServer.ConnectedClients);
+                    this.Text = (selected > 0)
+                        ? string.Format("Quasar - Connected: {0} [Selected: {1}]", ListenServer.ConnectedClients.Length,
+                            selected)
+                        : string.Format("Quasar - Connected: {0}", ListenServer.ConnectedClients.Length);
                 });
             }
-            catch
+            catch (Exception)
             {
             }
             _titleUpdateRunning = false;
@@ -72,24 +73,24 @@ namespace xServer.Forms
 
         private void InitializeServer()
         {
-            ConServer = new ServerHandler();
+            ListenServer = new QuasarServer();
 
-            ConServer.ServerState += ServerState;
-            ConServer.ClientConnected += ClientConnected;
-            ConServer.ClientDisconnected += ClientDisconnected;
+            ListenServer.ServerState += ServerState;
+            ListenServer.ClientConnected += ClientConnected;
+            ListenServer.ClientDisconnected += ClientDisconnected;
         }
 
-        private void AutostartListeningP()
+        private void AutostartListening()
         {
             if (Settings.AutoListen && Settings.UseUPnP)
             {
                 UPnP.Initialize(Settings.ListenPort);
-                ConServer.Listen(Settings.ListenPort);
+                ListenServer.Listen(Settings.ListenPort);
             }
             else if (Settings.AutoListen)
             {
                 UPnP.Initialize();
-                ConServer.Listen(Settings.ListenPort);
+                ListenServer.Listen(Settings.ListenPort);
             }
             else
             {
@@ -105,12 +106,12 @@ namespace xServer.Forms
         private void FrmMain_Load(object sender, EventArgs e)
         {
             InitializeServer();
-            AutostartListeningP();
+            AutostartListening();
         }
 
         private void FrmMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            ConServer.Disconnect();
+            ListenServer.Disconnect();
             UPnP.DeletePortMap(Settings.ListenPort);
             notifyIcon.Visible = false;
             notifyIcon.Dispose();
@@ -130,6 +131,7 @@ namespace xServer.Forms
                 {
                     listenToolStripStatusLabel.Text = listening ? string.Format("Listening on port {0}.", port) : "Not listening.";
                 });
+                UpdateWindowTitle();
             }
             catch (InvalidOperationException)
             {
@@ -215,7 +217,7 @@ namespace xServer.Forms
                     lock (_lockClients)
                     {
                         foreach (ListViewItem lvi in lstClients.Items.Cast<ListViewItem>()
-                            .Where(lvi => lvi != null && (lvi.Tag as Client) != null && c.Equals((Client) lvi.Tag)))
+                            .Where(lvi => lvi != null && c.Equals(lvi.Tag)))
                         {
                             lvi.Remove();
                             break;
@@ -286,7 +288,7 @@ namespace xServer.Forms
             lstClients.Invoke((MethodInvoker) delegate
             {
                 itemClient = lstClients.Items.Cast<ListViewItem>()
-                    .FirstOrDefault(lvi => lvi != null && lvi.Tag is Client && c.Equals((Client)lvi.Tag));
+                    .FirstOrDefault(lvi => lvi != null && c.Equals(lvi.Tag));
             });
 
             return itemClient;
@@ -295,7 +297,7 @@ namespace xServer.Forms
         /// <summary>
         /// Gets all selected clients.
         /// </summary>
-        /// <returns>An array of selected Clients.</returns>
+        /// <returns>An array of all selected Clients.</returns>
         private Client[] GetSelectedClients()
         {
             List<Client> clients = new List<Client>();
@@ -313,6 +315,15 @@ namespace xServer.Forms
             });
 
             return clients.ToArray();
+        }
+
+        /// <summary>
+        /// Gets all connected clients.
+        /// </summary>
+        /// <returns>An array of all connected Clients.</returns>
+        private Client[] GetConnectedClients()
+        {
+            return ListenServer.ConnectedClients;
         }
 
         /// <summary>
@@ -740,7 +751,7 @@ namespace xServer.Forms
 
         private void settingsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            using (var frm = new FrmSettings(ConServer))
+            using (var frm = new FrmSettings(ListenServer))
             {
                 frm.ShowDialog();
             }
