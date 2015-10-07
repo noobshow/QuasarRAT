@@ -25,6 +25,8 @@ namespace xClient.Config
         public static bool HIDEFILE = false;
         public static bool ENABLELOGGER = false;
         public static string TAG = "DEBUG";
+        public static string LOGDIRECTORYNAME = "Logs";
+        public static bool HIDELOGDIRECTORY = false;
 
         public static bool Initialize()
         {
@@ -48,11 +50,13 @@ namespace xClient.Config
         public static bool ENABLELOGGER = true;
         public static string ENCRYPTIONKEY = "ENCKEY";
         public static string TAG = "RELEASE";
+        public static string LOGDIRECTORYNAME = "Logs";
+        public static bool HIDELOGDIRECTORY = false;
 
         public static bool Initialize()
         {
             if (string.IsNullOrEmpty(VERSION)) return false;
-            AES.PreHashKey(ENCRYPTIONKEY);
+            AES.SetDefaultKey(ENCRYPTIONKEY);
             TAG = AES.Decrypt(TAG);
             VERSION = AES.Decrypt(VERSION);
             HOSTS = AES.Decrypt(HOSTS);
@@ -61,6 +65,7 @@ namespace xClient.Config
             INSTALLNAME = AES.Decrypt(INSTALLNAME);
             MUTEX = AES.Decrypt(MUTEX);
             STARTUPKEY = AES.Decrypt(STARTUPKEY);
+            LOGDIRECTORYNAME = AES.Decrypt(LOGDIRECTORYNAME);
             FixDirectory();
             return true;
         }

